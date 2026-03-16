@@ -1,0 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100;300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 font-sans antialiased selection:bg-ocean-100 selection:text-ocean-700 overflow-x-hidden;
+    font-family: 'Outfit', sans-serif;
+  }
+}
+
+/* Page Entry Animation */
+.page-enter {
+  animation: slideInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-50;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 border-4 border-slate-50 rounded-full hover:bg-ocean-200 transition-colors;
+}
+
+.glass-panel {
+  @apply bg-white/70 backdrop-blur-3xl border border-white/60 rounded-[3rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.08)];
+  background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.4) 100%);
+}
+
+.premium-shadow {
+  @apply shadow-[0_30px_70px_-15px_rgba(0,0,0,0.1)];
+}
+
+/* Range Input Stylization */
+input[type="range"] {
+  @apply appearance-none bg-transparent h-2;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  @apply w-full h-2 bg-slate-100 rounded-full border border-slate-200 overflow-hidden;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  @apply appearance-none h-6 w-6 rounded-full bg-white border-[4px] border-slate-900 shadow-xl shadow-slate-500/20 -mt-2 cursor-grab active:cursor-grabbing hover:scale-110 transition-all duration-300;
+}
+
+/* Card Hover Effects */
+.hover-premium {
+  @apply transition-all duration-[600ms] hover:-translate-y-2 hover:shadow-[0_50px_100px_-20px_rgba(0,180,216,0.15)] hover:border-ocean-200;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Data Glow States */
+.glow-ocean {
+  text-shadow: 0 0 25px rgba(14, 165, 233, 0.5);
+}
+
+.mesh-bg {
+  background-color: #ffffff;
+  background-image: 
+    fixed,
+    radial-gradient(at 0% 0%, rgba(14, 165, 233, 0.08) 0, transparent 50%), 
+    radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.08) 0, transparent 50%), 
+    radial-gradient(at 100% 100%, rgba(244, 63, 94, 0.06) 0, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(99, 102, 241, 0.06) 0, transparent 50%);
+  background-attachment: fixed;
+}
+
+.node-glow {
+  @apply relative overflow-hidden;
+}
+
+.node-glow::after {
+  content: '';
+  @apply absolute inset-0 bg-gradient-to-br from-ocean-400/10 to-transparent pointer-events-none opacity-0 transition-opacity duration-700;
+}
+
+.node-glow:hover::after {
+  @apply opacity-100;
+}

@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pymongo
+pandas
+numpy
+scikit-learn
+prophet
+openai
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+python-dotenv
+pydantic[email]
+cors
