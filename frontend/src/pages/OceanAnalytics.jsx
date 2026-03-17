@@ -1,313 +1,215 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Waves, 
-  Thermometer, 
-  Droplets, 
-  TrendingUp,
-  Activity,
-  AlertCircle,
-  ChevronRight,
-  RefreshCw,
-  CheckCircle2,
-  Zap,
-  Cpu,
-  Database
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  LineChart, Line, AreaChart, Area, Cell, Legend
+} from 'recharts';
+import { 
+  Database, Activity, TrendingUp, AlertCircle, Share2, 
+  RefreshCcw, Layers, PieChart as PieIcon, Maximize2
 } from 'lucide-react';
 import api from '../services/api';
-import { 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  AreaChart,
-  Area
-} from 'recharts';
 
 const OceanAnalytics = () => {
-  const [data, setData] = useState([]);
-  const [isDiagnosticsRunning, setIsDiagnosticsRunning] = useState(false);
-  const [diagnosticsComplete, setDiagnosticsComplete] = useState(false);
-  const [telemetry, setTelemetry] = useState({
-    salinity: 34.5,
-    pressure: 1013.2,
-    trend: 'up'
-  });
-
   const [datasets, setDatasets] = useState([]);
   const [selectedFile, setSelectedFile] = useState('');
+  const [metadata, setMetadata] = useState(null);
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Fetch available datasets
   useEffect(() => {
-    const fetchMeta = async () => {
-      try {
-        const { data: dsList } = await api.get('/datasets');
-        const trainedSteps = dsList.filter(d => d.status === 'trained');
-        setDatasets(trainedSteps);
-        if (trainedSteps.length > 0) {
-          setSelectedFile(trainedSteps[0].filename);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchMeta();
+    fetchConfig();
   }, []);
 
-  // Fetch actual data for the chart
   useEffect(() => {
-    if (!selectedFile) return;
-
-    const fetchData = async () => {
-      try {
-        const { data: rawData } = await api.get(`/analytics/data/${selectedFile}`);
-        // Map data to chart format
-        const chartData = rawData.map((d, i) => ({
-          time: d.timestamp || `00:${i}`,
-          temp: d.temperature || 0,
-          salinity: d.salinity || 0,
-          pollution: d.pollution_index || 0
-        }));
-        setData(chartData);
-
-        // Update side telemetry with means
-        if (rawData.length > 0) {
-          const avgSal = (rawData.reduce((acc, curr) => acc + (curr.salinity || 0), 0) / rawData.length).toFixed(1);
-          setTelemetry(prev => ({ ...prev, salinity: parseFloat(avgSal) }));
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchData();
+    if (selectedFile) {
+      loadDynamicIntelligence();
+    }
   }, [selectedFile]);
 
-  // Real-time telemetry simulation for small fluctuations
-  useEffect(() => {
-    const interval = setInterval(() => {
-        setTelemetry(prev => ({
-            salinity: +(prev.salinity + (Math.random() * 0.1 - 0.05)).toFixed(1),
-            pressure: +(prev.pressure + (Math.random() * 0.4 - 0.2)).toFixed(1),
-            trend: Math.random() > 0.5 ? 'up' : 'down'
-        }));
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const runDiagnostics = () => {
-    setIsDiagnosticsRunning(true);
-    setDiagnosticsComplete(false);
-    
-    // Simulate complex hardware node verification sequence
-    setTimeout(() => {
-      setIsDiagnosticsRunning(false);
-      setDiagnosticsComplete(true);
-      // Reset after a short display
-      setTimeout(() => setDiagnosticsComplete(false), 3000);
-    }, 3000);
+  const fetchConfig = async () => {
+    try {
+      const { data } = await api.get('/datasets');
+      const trainedOnly = data.filter(d => d.status === 'trained');
+      setDatasets(trainedOnly);
+      if (trainedOnly.length > 0) setSelectedFile(trainedOnly[0].filename);
+    } catch (err) {
+      console.error("Registry Load Failure", err);
+    }
   };
 
-  const chartColors = {
-    stroke: "#0ea5e9",
-    fill: "url(#colorTemp)",
-    grid: "#f1f5f9"
+  const loadDynamicIntelligence = async () => {
+    setLoading(true);
+    try {
+      const [metaRes, dataRes] = await Promise.all([
+        api.get(`/analytics/metadata/${selectedFile}`),
+        api.get(`/analytics/data/${selectedFile}`)
+      ]);
+      setMetadata(metaRes.data);
+      setData(dataRes.data);
+    } catch (err) {
+      console.error("Neural Data Extraction Failure", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderDynamicChart = (vis, index) => {
+    const ChartType = vis.type === 'line' ? LineChart : vis.type === 'bar' ? BarChart : AreaChart;
+    const colors = ['#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899'];
+    const activeColor = colors[index % colors.length];
+
+    return (
+      <div key={index} className="glass-panel p-6 space-y-4 group animate-slideInUp">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">{vis.title}</h3>
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{vis.recommended_for}</span>
+          </div>
+          <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-ocean-50 group-hover:text-ocean-500 transition-colors">
+            <Maximize2 size={14} />
+          </div>
+        </div>
+
+        <div className="h-64 mt-6">
+          <ResponsiveContainer width="100%" height="100%">
+            <ChartType data={data}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+              <XAxis 
+                dataKey={vis.x_axis} 
+                fontSize={10} 
+                tick={{fill: '#94a3b8', fontWeight: 600}} 
+                axisLine={false} 
+                tickLine={false} 
+              />
+              <YAxis 
+                fontSize={10} 
+                tick={{fill: '#94a3b8', fontWeight: 600}} 
+                axisLine={false} 
+                tickLine={false} 
+              />
+              <Tooltip 
+                contentStyle={{backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff'}}
+                itemStyle={{fontSize: '12px', fontWeight: 900}}
+              />
+              {vis.type === 'line' && (
+                <Line type="monotone" dataKey={vis.y_axis} stroke={activeColor} strokeWidth={3} dot={false} animationDuration={2000} />
+              )}
+              {vis.type === 'bar' && (
+                <Bar dataKey={vis.y_axis} fill={activeColor} radius={[4, 4, 0, 0]} animationDuration={2000} />
+              )}
+              {vis.type === 'area' && (
+                <Area type="monotone" dataKey={vis.y_axis} fill={activeColor} fillOpacity={0.1} stroke={activeColor} strokeWidth={2} />
+              )}
+            </ChartType>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="min-h-[calc(100vh-5rem)] p-8 space-y-10 max-w-7xl mx-auto page-enter mesh-bg pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+    <div className="min-h-[calc(100vh-5rem)] p-8 bg-[#f8fafc] mesh-bg pb-20">
+      {/* Header Intelligence Interface */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6 glass-panel p-8">
         <div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tight glow-ocean uppercase">Oceanographic Intelligence</h1>
-          <p className="text-slate-500 font-medium text-lg mt-1 text-balance">Deep-sea telemetry streams and anomaly monitoring protocols powered by Sentinel-V4 neural grid.</p>
+           <div className="flex items-center gap-3 mb-1">
+             <div className="p-2 bg-slate-900 rounded-lg text-white">
+               <Activity size={20} />
+             </div>
+             <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none mt-1">SENTINEL DASHBOARD</h1>
+           </div>
+           <p className="text-slate-500 font-bold text-sm tracking-tight">Active Node Hub • Real-Time Autonomous Analytics</p>
         </div>
-        <div className="flex gap-4">
-          <div className="px-8 py-5 bg-white/80 backdrop-blur-md border border-ocean-100 rounded-[2.5rem] text-ocean-600 text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-4 shadow-2xl shadow-ocean-500/10">
-            <div className="relative">
-                <div className="absolute inset-0 bg-emerald-500 rounded-full animate-ping opacity-30" />
-                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center border border-emerald-100">
-                  <Activity size={20} className="text-emerald-500 relative z-10" />
-                </div>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-slate-400 leading-none mb-1 text-[8px]">Network Status</span>
-              <span className="text-emerald-600 tracking-tighter">NEURAL STREAM ACTIVE</span>
-            </div>
-          </div>
+
+        <div className="flex items-center gap-4 bg-white/50 p-2 rounded-2xl border border-slate-200">
+           <Database size={18} className="text-slate-400 ml-2" />
+           <select 
+             value={selectedFile}
+             onChange={(e) => setSelectedFile(e.target.value)}
+             className="bg-transparent border-none outline-none text-sm font-black text-slate-800 uppercase tracking-tight pr-8 cursor-pointer"
+           >
+             {datasets.map(d => <option key={d.filename} value={d.filename}>{d.filename}</option>)}
+           </select>
+           <button onClick={loadDynamicIntelligence} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black active:scale-95 transition-all">
+             Refresh Core
+           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        {/* Main Variation Chart */}
-        <div className="lg:col-span-2 glass-panel p-12 shadow-2xl border-0 relative overflow-hidden group">
-          <div className="absolute inset-0 bg-gradient-to-br from-ocean-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
-          <div className="absolute top-0 right-0 -mr-20 -mt-20 p-8 opacity-5 group-hover:scale-110 transition-transform duration-1000 pointer-events-none">
-             <Waves size={500} />
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        {/* Dynamic Telemetry Sidebars */}
+        <div className="lg:col-span-1 space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Node Telemetry</h2>
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           </div>
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-16 relative z-10 gap-8">
-            <div className="flex items-center gap-5">
-              <div className="w-16 h-16 bg-slate-900 text-white rounded-[1.5rem] flex items-center justify-center shadow-2xl border border-white/10 group-hover:scale-110 group-hover:rotate-6 transition-all duration-700">
-                <Thermometer size={32} />
+          
+          <div className="space-y-4 max-h-[800px] overflow-y-auto pr-2 scrollbar-hide">
+            {metadata && Object.entries(metadata.summary_stats).map(([col, s]) => (
+              <div key={col} className="glass-panel p-6 border-l-4 border-l-ocean-500 group hover:translate-x-2 transition-transform duration-500">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 group-hover:text-ocean-600 transition-colors">{col}</p>
+                <div className="flex items-end gap-2">
+                  <p className="text-2xl font-black text-slate-900 tabular-nums leading-none tracking-tighter">{s.avg}</p>
+                  <span className="text-[10px] font-bold text-slate-400 mb-0.5 tracking-tight">μ Mean Scale</span>
+                </div>
+                <div className="mt-4 flex gap-4 pt-4 border-t border-slate-50">
+                   <div className="flex-1">
+                      <p className="text-[8px] font-black text-slate-300 uppercase">Max</p>
+                      <p className="text-[12px] font-black text-slate-600">{s.max}</p>
+                   </div>
+                   <div className="flex-1 border-l border-slate-50 pl-4">
+                      <p className="text-[8px] font-black text-slate-300 uppercase">Min</p>
+                      <p className="text-[12px] font-black text-slate-600">{s.min}</p>
+                   </div>
+                </div>
               </div>
-              <div>
-                <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none">Thermal Variation</h3>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">24H TELEMETRY SNAPSHOT</span>
-              </div>
-            </div>
-            <div className="flex flex-col md:flex-row items-center gap-4">
-               <div className="flex items-center gap-3 px-6 py-3 bg-white border border-slate-100 rounded-2xl text-[10px] font-black text-slate-400 shadow-sm uppercase tracking-widest">
-                  <Database size={16} className="text-ocean-500" /> SOURCE: 
-                  <select 
-                    value={selectedFile} 
-                    onChange={(e) => setSelectedFile(e.target.value)}
-                    className="bg-transparent border-none outline-none text-slate-900 ml-2 cursor-pointer font-black"
-                  >
-                    {datasets.length === 0 && <option>NO TRAINED DATA</option>}
-                    {datasets.map(ds => <option key={ds.filename} value={ds.filename}>{ds.filename}</option>)}
-                  </select>
-               </div>
-               <div className="flex items-center gap-3 px-6 py-3 bg-white border border-slate-100 rounded-2xl text-[10px] font-black text-slate-400 shadow-sm uppercase tracking-widest">
-                  <Cpu size={16} className="text-ocean-500" /> SENSOR NODE: ALPHA-7-G
-               </div>
-            </div>
+            ))}
           </div>
-          <div className="h-[500px] relative z-10">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data}>
-                <defs>
-                   <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
-                     <stop offset="0%" stopColor="#0ea5e9" stopOpacity={0.4}/>
-                     <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0}/>
-                   </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis 
-                   dataKey="time" 
-                   stroke="#94a3b8" 
-                   fontSize={11} 
-                   fontWeight="900" 
-                   tickLine={false} 
-                   axisLine={false} 
-                   dy={20}
-                   tick={{ fill: '#64748b', fontSize: 10, letterSpacing: '0.1em' }}
-                   className="uppercase"
-                />
-                <YAxis 
-                   stroke="#94a3b8" 
-                   fontSize={11} 
-                   fontWeight="900" 
-                   tickLine={false} 
-                   axisLine={false} 
-                   dx={-20}
-                   tick={{ fill: '#64748b' }}
-                />
-                <Tooltip 
-                   cursor={{ stroke: '#0ea5e9', strokeWidth: 2, strokeDasharray: '5 5' }}
-                   contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: 'none', borderRadius: '2rem', boxShadow: '0 40px 100px -20px rgba(0,0,0,0.1)', padding: '24px', backdropFilter: 'blur(10px)' }}
-                   labelStyle={{ fontSize: '14px', fontWeight: '900', color: '#0f172a', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.1em' }}
-                   itemStyle={{ color: '#0ea5e9', fontWeight: '900', textTransform: 'uppercase', fontSize: '12px' }}
-                />
-                <Area 
-                   type="monotone" 
-                   dataKey="temp" 
-                   stroke="#0ea5e9" 
-                   fillOpacity={1} 
-                   fill="url(#colorTemp)" 
-                   strokeWidth={6} 
-                   animationDuration={3000}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+
+          <div className="bg-slate-900 rounded-[2rem] p-8 text-white shadow-2xl relative overflow-hidden">
+             <div className="absolute -top-10 -right-10 w-40 h-40 bg-ocean-500/20 rounded-full blur-3xl" />
+             <div className="flex items-center gap-3 mb-6">
+                <AlertCircle size={20} className="text-ocean-400" />
+                <h3 className="text-sm font-black uppercase tracking-widest text-ocean-400">AI Intelligence Triage</h3>
+             </div>
+             <div className="space-y-6">
+                {metadata?.insights.map((ins, idx) => (
+                  <div key={idx} className="flex gap-4">
+                    <div className="w-1.5 h-1.5 rounded-full bg-ocean-400 mt-1.5 shrink-0" />
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{ins.type}</p>
+                      <p className="text-xs font-bold leading-relaxed">{ins.text}</p>
+                    </div>
+                  </div>
+                ))}
+                {!metadata?.insights.length && <p className="text-xs font-bold opacity-50 italic">Processing neural registry... No anomalies detected.</p>}
+             </div>
           </div>
         </div>
 
-        {/* Intelligence Sidebars */}
-        <div className="flex flex-col gap-10">
-          <div className="glass-panel p-10 bg-white/40 backdrop-blur-3xl border-0 shadow-2xl relative overflow-hidden group">
-            <div className="absolute inset-0 bg-ocean-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
-            <div className="flex items-center justify-between mb-8 relative z-10">
-                 <div className="flex flex-col">
-                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.4em] mb-1">Salinity Levels</p>
-                    <span className="w-10 h-1 bg-ocean-500 rounded-full" />
-                 </div>
-                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all duration-700 shadow-xl ${telemetry.trend === 'up' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-                    <TrendingUp size={24} className={telemetry.trend === 'down' ? 'rotate-180 transition-transform' : 'transition-transform'} />
-                 </div>
+        {/* Dynamic Visualization Engine Area */}
+        <div className="lg:col-span-3">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Processing Visuals</h2>
+            <div className="flex gap-3">
+               <button className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 shadow-sm"><RefreshCcw size={14} /></button>
+               <button className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 shadow-sm"><Layers size={14} /></button>
             </div>
-            <div className="flex flex-col mb-10 relative z-10">
-              <span className="text-7xl font-black text-slate-900 tracking-tighter tabular-nums leading-none">
-                 {telemetry.salinity} 
-                 <span className="text-2xl text-slate-300 ml-2 font-black uppercase tracking-widest">PSU</span>
-              </span>
-            </div>
-            <div className="w-full bg-slate-100 h-4 rounded-full overflow-hidden border border-slate-200/50 p-0.5 relative z-10">
-              <div 
-                className="bg-gradient-to-r from-ocean-500 to-cyan-500 h-full rounded-full transition-all duration-1000 shadow-[0_0_20px_rgba(14,165,233,0.5)]" 
-                style={{ width: `${(telemetry.salinity / 50) * 100}%` }}
-              />
-            </div>
-            <p className="mt-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] text-center relative z-10 flex items-center justify-center gap-3">
-               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" /> Neural Validation: ACTIVE
-            </p>
           </div>
 
-          <div className="bg-slate-900 rounded-[3.5rem] p-12 text-white shadow-[0_50px_100px_-20px_rgba(15,23,42,0.5)] relative overflow-hidden group border border-white/5">
-            <div className="absolute top-0 right-0 -mr-20 -mt-20 p-8 opacity-10 group-hover:scale-110 transition-transform duration-1000">
-                <AlertCircle size={300} />
-            </div>
-            <div className="relative z-10">
-              <div className="flex items-start gap-8 mb-12">
-                <div className="w-20 h-20 bg-white/10 backdrop-blur-3xl rounded-[2rem] flex items-center justify-center text-white shadow-2xl border border-white/10 group-hover:scale-110 transition-all duration-700">
-                  <Zap size={40} className="text-amber-400" />
-                </div>
-                <div>
-                  <h4 className="font-black text-3xl mb-3 tracking-tighter uppercase whitespace-nowrap">Thermal Anomaly</h4>
-                  <p className="text-slate-400 text-xl font-medium leading-relaxed">System-7G reports critical variance +2.4°C above predicted baseline.</p>
-                </div>
-              </div>
-              
-              <button 
-                onClick={runDiagnostics}
-                disabled={isDiagnosticsRunning || diagnosticsComplete}
-                className={`w-full py-8 text-sm uppercase tracking-[0.3em] font-black rounded-[2.5rem] flex items-center justify-center gap-4 transition-all active:scale-95 shadow-2xl border border-white/5 ${
-                    diagnosticsComplete 
-                    ? 'bg-emerald-500 text-white shadow-emerald-500/40' 
-                    : 'bg-white text-slate-900 hover:bg-slate-50 hover:scale-[1.02] shadow-white/10'
-                }`}
-              >
-                {isDiagnosticsRunning ? (
-                  <><RefreshCw className="animate-spin text-ocean-600" size={24} /> Verifying Neural Nodes...</>
-                ) : diagnosticsComplete ? (
-                  <><CheckCircle2 size={24} /> Nodes Verified</>
-                ) : (
-                  <>Run Sentinel Diagnostics <ChevronRight size={24} className="text-ocean-600" /></>
-                )}
-              </button>
-            </div>
-          </div>
-          
-          <div className="glass-panel p-10 bg-white shadow-xl border-0 overflow-hidden relative group">
-             <div className="absolute inset-0 bg-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
-             <div className="flex items-center gap-5 mb-10 relative z-10">
-                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center border border-slate-100 shadow-sm group-hover:scale-110 group-hover:rotate-6 transition-all duration-700">
-                    <Droplets size={30} className="text-cyan-600" />
-                </div>
-                <div>
-                  <h4 className="text-2xl font-black text-slate-900 tracking-tighter uppercase leading-none">Regional Pressure</h4>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">BAROMETRIC TELEMETRY</span>
-                </div>
+          {loading ? (
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {[1,2,3,4].map(i => (
+                  <div key={i} className="h-80 bg-slate-100 rounded-[2rem] animate-pulse flex items-center justify-center">
+                    <Database size={40} className="text-slate-200 animate-bounce" />
+                  </div>
+                ))}
              </div>
-             <div className="flex flex-col relative z-10">
-                <div className="text-6xl font-black text-slate-900 tracking-tighter leading-none mb-4 tabular-nums">
-                   {telemetry.pressure} 
-                   <span className="text-2xl text-slate-300 ml-2 font-black uppercase tracking-widest">hPa</span>
-                </div>
-                <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
-                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em]">Stable Barometric Range [0.4% Dev]</p>
-                </div>
+          ) : (
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               {metadata?.visuals.map((vis, idx) => renderDynamicChart(vis, idx))}
              </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

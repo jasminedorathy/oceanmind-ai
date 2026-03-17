@@ -35,7 +35,31 @@ const climateData = [
 const ClimateIntelligence = () => {
   const [isProjecting, setIsProjecting] = useState(false);
   const [projected, setProjected] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState({
+    anomaly: 1.24,
+    wind: 42,
+    cloud: 68,
+    rainfall: -12,
+    risk: 78,
+    history: [],
+    regions: []
+  });
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchClimateData = async () => {
+      try {
+        const response = await api.get('/analytics/climate');
+        setData(response.data);
+      } catch (err) {
+        console.error('Benthic telemetry handshake failed:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchClimateData();
+  }, []);
 
   const handleProjection = () => {
     setIsProjecting(true);
@@ -46,11 +70,17 @@ const ClimateIntelligence = () => {
     }, 2500);
   };
 
+  if (loading) return (
+    <div className="flex h-[calc(100vh-5rem)] items-center justify-center">
+      <RefreshCw className="animate-spin text-ocean-600" size={48} />
+    </div>
+  );
+
   return (
     <div className="min-h-[calc(100vh-5rem)] p-8 space-y-8 max-w-7xl mx-auto page-enter mesh-bg pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tight glow-ocean">Climate Intelligence</h1>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight glow-ocean uppercase">Climate Intelligence</h1>
           <p className="text-slate-500 font-medium text-lg mt-1 text-balance">Monitoring temperature anomalies, rainfall patterns, and global climate risk scores.</p>
         </div>
         <div className="flex items-center gap-4">
@@ -60,7 +90,7 @@ const ClimateIntelligence = () => {
               </div>
               <div>
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none block mb-1">Active Global Anomaly</span>
-                <span className="text-sm font-black text-rose-600 tracking-tighter transition-all">+1.24°C Critical</span>
+                <span className="text-sm font-black text-rose-600 tracking-tighter transition-all">+{data.anomaly}°C Critical</span>
               </div>
            </div>
         </div>
@@ -68,10 +98,10 @@ const ClimateIntelligence = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
          {[
-           { label: 'Wind Velocity', value: '42 km/h', icon: Wind, color: 'text-cyan-500', bg: 'bg-cyan-50', border: 'border-cyan-100', sub: 'Average Global' },
-           { label: 'Cloud Density', value: '68%', icon: CloudSun, color: 'text-amber-500', bg: 'bg-amber-50', border: 'border-amber-100', sub: 'Atmospheric Cover' },
-           { label: 'Rainfall Deviation', value: '-12%', icon: RefreshCw, color: 'text-ocean-500', bg: 'bg-ocean-50', border: 'border-ocean-100', sub: 'Below Seasonal Baseline' },
-           { label: 'Risk Score (Avg)', value: '78/100', icon: Zap, color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', sub: 'High Instability' }
+           { label: 'Wind Velocity', value: `${data.wind} km/h`, icon: Wind, color: 'text-cyan-500', bg: 'bg-cyan-50', border: 'border-cyan-100', sub: 'Average Global' },
+           { label: 'Cloud Density', value: `${data.cloud}%`, icon: CloudSun, color: 'text-amber-500', bg: 'bg-amber-50', border: 'border-amber-100', sub: 'Atmospheric Cover' },
+           { label: 'Rainfall Deviation', value: `${data.rainfall}%`, icon: RefreshCw, color: 'text-ocean-500', bg: 'bg-ocean-50', border: 'border-ocean-100', sub: 'Below Seasonal Baseline' },
+           { label: 'Risk Score (Avg)', value: `${data.risk}/100`, icon: Zap, color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', sub: data.risk > 80 ? 'High Instability' : 'Stable Margin' }
          ].map((item, idx) => (
            <div key={idx} className="glass-panel p-8 hover-premium group cursor-pointer relative overflow-hidden">
               <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-125 transition-transform duration-700">
@@ -96,7 +126,7 @@ const ClimateIntelligence = () => {
         <div className="lg:col-span-2 glass-panel p-12 hover-premium">
           <div className="flex items-center justify-between mb-12">
             <div>
-               <h3 className="text-3xl font-black text-slate-900 tracking-tighter">Global Temperature Anomaly</h3>
+               <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">Global Temperature Anomaly</h3>
                <p className="text-slate-500 font-medium mt-1">Neural deviation analysis against historical baselines.</p>
             </div>
             <div className="w-16 h-16 bg-rose-50 rounded-[1.5rem] text-rose-600 border border-rose-100 flex items-center justify-center shadow-lg shadow-rose-500/10">
@@ -105,7 +135,7 @@ const ClimateIntelligence = () => {
           </div>
           <div className="h-[400px]">
              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={climateData}>
+                <AreaChart data={data.history}>
                    <defs>
                      <linearGradient id="colorAnomaly" x1="0" y1="0" x2="0" y2="1">
                        <stop offset="5%" stopColor="#e11d48" stopOpacity={0.2}/>
@@ -136,15 +166,10 @@ const ClimateIntelligence = () => {
                  <h3 className="text-sm font-black text-slate-900 tracking-[0.2em]">Regional Instability Score</h3>
               </div>
               <div className="flex-1 space-y-10">
-                 {[
-                   { region: 'Arctic Circle', score: 92, status: 'Critical', color: 'bg-rose-500' },
-                   { region: 'Amazon Basin', score: 74, status: 'High', color: 'bg-amber-500' },
-                   { region: 'Sahel Region', score: 85, status: 'Critical', color: 'bg-rose-500' },
-                   { region: 'Pacific Islands', score: 68, status: 'Severe', color: 'bg-amber-500' }
-                 ].map((r, i) => (
+                 {data.regions.map((r, i) => (
                    <div key={i} className="space-y-4">
                       <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                         <span className="text-slate-500 group-hover:text-slate-900 transition-colors">{r.region}</span>
+                         <span className="text-slate-500 group-hover:text-slate-900 transition-colors uppercase">{r.region}</span>
                          <div className="flex items-center gap-2">
                             <span className={r.score > 80 ? 'text-rose-600' : 'text-amber-600'}>{r.score}%</span>
                             <div className={`w-2 h-2 rounded-full ${r.color} animate-pulse`} />

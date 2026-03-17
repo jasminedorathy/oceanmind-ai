@@ -1,88 +1,117 @@
 import pandas as pd
 import numpy as np
+import json
 
 class InsightEngine:
     @staticmethod
+    def get_schema(df: pd.DataFrame):
+        schema = {
+            "numeric": [],
+            "categorical": [],
+            "datetime": []
+        }
+        for col in df.columns:
+            if pd.api.types.is_numeric_dtype(df[col]):
+                schema["numeric"].append(col)
+            elif pd.api.types.is_datetime64_any_dtype(df[col]) or "date" in col.lower() or "time" in col.lower():
+                schema["datetime"].append(col)
+            else:
+                schema["categorical"].append(col)
+        return schema
+
+    @staticmethod
     def generate_insights(df: pd.DataFrame):
         insights = []
+        schema = InsightEngine.get_schema(df)
         
-        # 1. Oceanographic & Climate
-        if 'temperature' in df.columns:
-            temp_mean = df['temperature'].mean()
-            temp_max = df['temperature'].max()
-            if temp_max > temp_mean + 1.5:
-                insights.append({
-                    "type": "Warning",
-                    "category": "Climate",
-                    "text": f"Thermal variance detected: Regional peaks are reaching {round(temp_max, 1)}°C. This exceeds the seasonal baseline by {round(temp_max - temp_mean, 1)}°C, increasing coral bleaching risk."
-                })
-        
-        # 2. Pollution Impact
-        if 'pollution_index' in df.columns or 'plastic_concentration' in df.columns:
-            p_index = df.get('pollution_index', df.get('plastic_concentration', pd.Series([0]))).mean()
-            if p_index > 50:
+        # 1. Statistical Trends (Numeric Columns)
+        for col in schema["numeric"]:
+            mean = df[col].mean()
+            std = df[col].std()
+            max_val = df[col].max()
+            min_val = df[col].min()
+            
+            # Anomaly Detection (Simple Z-Score)
+            last_val = df[col].iloc[-1]
+            if abs(last_val - mean) > 2 * std:
                 insights.append({
                     "type": "Critical",
-                    "category": "Pollution",
-                    "text": f"Chemical telemetry indicates an elevated pollution density ({round(p_index, 1)}). Bio-accumulation risk is currently rated as HIGH for local nurseries."
-                })
-            elif p_index > 30:
-                insights.append({
-                    "type": "Alert",
-                    "category": "Pollution",
-                    "text": f"Moderate particulate concentration ({round(p_index, 1)}) detected. Recommend increasing sensor frequency in coastal sectors."
+                    "category": "Anomaly Detection",
+                    "text": f"Extreme variance detected in '{col}': Current value {round(last_val, 2)} is significantly outside standard deviation range ({round(mean - 2*std, 2)} - {round(mean + 2*std, 2)})."
                 })
 
-        # 3. Biodiversity & Ecosystem Health
-        if 'biodiversity_index' in df.columns:
-            b_index = df['biodiversity_index'].mean()
-            # Handle different scales (e.g. 0-1 or 0-10)
-            threshold = 0.5 if b_index <= 1 else 5.0
-            if b_index < threshold:
-                insights.append({
-                    "type": "Critical",
-                    "category": "Biodiversity",
-                    "text": f"Ecosystem instability detected. Biodiversity Index ({round(b_index, 2)}) has fallen below the safe-state threshold."
-                })
-            else:
-                insights.append({
-                    "type": "Stable",
-                    "category": "Biodiversity",
-                    "text": f"Biological registry shows a healthy resilience index of {round(b_index, 2)}. Population clusters appear to be in a growth phase."
-                })
+            # Trend Detection
+            if len(df) > 10:
+                first_avg = df[col].iloc[:5].mean()
+                last_avg = df[col].iloc[-5:].mean()
+                diff_pct = ((last_avg - first_avg) / first_avg) * 100 if first_avg != 0 else 0
+                if abs(diff_pct) > 10:
+                    status = "Ascending" if diff_pct > 0 else "Descending"
+                    insights.append({
+                        "type": "Trend",
+                        "category": "Historical Analysis",
+                        "text": f"'{col}' is in a sustained {status} trend, shifting by {round(diff_pct, 1)}% over requested timeline."
+                    })
 
-        # 4. Neural Correlations
-        if 'temperature' in df.columns and 'biodiversity_index' in df.columns:
-            correlation = df['temperature'].corr(df['biodiversity_index'])
-            if not np.isnan(correlation):
-                if correlation < -0.5:
-                    insights.append({
-                        "type": "AI Insight",
-                        "category": "Correlative",
-                        "text": f"Strong Negative Correlation ({round(correlation, 2)}): Neural grid confirms that rising thermal stress is actively driving biodiversity decline in this sector."
-                    })
-                elif correlation > 0.5:
-                    insights.append({
-                        "type": "AI Insight",
-                        "category": "Correlative",
-                        "text": f"Positive Correlation ({round(correlation, 2)}): Data suggests that current regional temperature levels are optimizing biological productivity."
-                    })
+        # 2. Cross-Correlation (Dynamic Variable Linkage)
+        if len(schema["numeric"]) > 1:
+            corr_matrix = df[schema["numeric"]].corr()
+            for i in range(len(schema["numeric"])):
+                for j in range(i + 1, len(schema["numeric"])):
+                    col_a = schema["numeric"][i]
+                    col_b = schema["numeric"][j]
+                    val = corr_matrix.loc[col_a, col_b]
+                    if abs(val) > 0.7:
+                        strength = "Strong" if abs(val) > 0.85 else "Significant"
+                        direction = "Positive" if val > 0 else "Negative"
+                        insights.append({
+                            "type": "AI Insight",
+                            "category": "Variable Linkage",
+                            "text": f"Found {strength} {direction} Linkage ({round(val, 2)}) between '{col_a}' and '{col_b}'. These variables appear to be mutually dependent."
+                        })
 
         return insights
 
     @staticmethod
-    def predict_impact(temp: float, pollution: float, fishing: float):
-        # Advanced Environmental Multi-Variate Logic
+    def suggest_visuals(df: pd.DataFrame):
+        schema = InsightEngine.get_schema(df)
+        visuals = []
         
-        # Calculate individual stress indicators
-        bleaching_calc = (temp * 0.6) + (pollution * 0.4)
-        decline_calc = (fishing * 0.5) + (pollution * 0.3) + (temp * 0.2)
-        stress_calc = (temp * 0.33) + (pollution * 0.33) + (fishing * 0.34)
+        # Prefer Timeseries
+        time_col = schema["datetime"][0] if schema["datetime"] else None
         
-        return {
-            "bleaching_probability": round(min(100, bleaching_calc * 8), 2),
-            "biodiversity_decline_rate": round(min(100, decline_calc * 7), 2),
-            "ecosystem_stress_index": round(min(10, stress_calc), 1),
-            "risk_assessment": "Critical Impact" if stress_calc > 7.5 else "Moderate Strain" if stress_calc > 4.5 else "Minimal Stress",
-            "ai_projection": "Under these conditions, a 2.5°C rise will trigger irreversible coral breakdown within 36 months."
-        }
+        # Time-series Line Charts
+        if time_col:
+            for num_col in schema["numeric"]:
+                visuals.append({
+                    "type": "line",
+                    "title": f"{num_col} Over Time",
+                    "x_axis": time_col,
+                    "y_axis": num_col,
+                    "recommended_for": "Trend Analysis"
+                })
+        
+        # Categorical Bar Charts
+        if schema["categorical"]:
+            cat_col = schema["categorical"][0]
+            for num_col in schema["numeric"]:
+                visuals.append({
+                    "type": "bar",
+                    "title": f"Distribution by {cat_col} ({num_col})",
+                    "x_axis": cat_col,
+                    "y_axis": num_col,
+                    "recommended_for": "Comparative Analysis"
+                })
+        
+        # Fallback to simple indices if no time or categories
+        if not time_col and not schema["categorical"]:
+            for num_col in schema["numeric"]:
+                visuals.append({
+                    "type": "area",
+                    "title": f"Incremental Density of {num_col}",
+                    "x_axis": "index",
+                    "y_axis": num_col,
+                    "recommended_for": "Density Tracking"
+                })
+
+        return visuals

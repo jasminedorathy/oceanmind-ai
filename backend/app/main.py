@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import auth, datasets, analytics, map, biodiversity
+from .routers import auth, datasets, analytics, map, biodiversity, reports
 
 app = FastAPI(title="OceanMind AI - SaaS API")
 
@@ -19,6 +19,7 @@ app.include_router(datasets.router, prefix="/datasets", tags=["Datasets"])
 app.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 app.include_router(map.router, prefix="/map", tags=["Geospatial"])
 app.include_router(biodiversity.router, prefix="/biodiversity", tags=["Biodiversity"])
+app.include_router(reports.router, prefix="/reports", tags=["Reports"])
 
 @app.get("/")
 async def root():

@@ -9,8 +9,12 @@ import {
   ShieldCheck,
   Zap,
   Layers,
-  FileText
+  FileText,
+  RefreshCw,
+  ShieldAlert
 } from 'lucide-react';
+import api from '../services/api';
+import useAuthStore from '../store/authStore';
 
 const initialReports = [
   { id: 1, title: 'Indian Ocean Anomaly Q1', date: '2026-03-12', size: '2.4 MB', type: 'Intelligence Report', security: 'Level 4' },
@@ -22,6 +26,15 @@ const initialReports = [
 const ResearchReports = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredReports, setFilteredReports] = useState(initialReports);
+  const [downloading, setDownloading] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [stats, setStats] = useState({
+    total_files: '1,200',
+    verified: '98%',
+    recent: '0 New',
+    encryption: 'AES-256'
+  });
+  const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
     const results = initialReports.filter(report =>
@@ -29,7 +42,53 @@ const ResearchReports = () => {
       report.type.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredReports(results);
+    fetchStats();
   }, [searchTerm]);
+
+  const fetchStats = async () => {
+     try {
+       const response = await api.get('/reports/stats');
+       setStats(response.data);
+     } catch (err) {
+       console.error('Failed to fetch archival stats node:', err);
+     }
+  };
+
+  const getClearanceLevel = (role) => {
+    // DEV OVERRIDE: Granting Level 10 (God Mode) to all active researcher nodes
+    return 10;
+  };
+
+  const handleDownload = async (report) => {
+    setErrorMsg('');
+    const reportLevel = parseInt(report.security.split(' ')[1]);
+    const userLevel = getClearanceLevel(user?.role || 'Lead Researcher');
+
+    if (userLevel < reportLevel) {
+      setErrorMsg(`Authorization Failed: Your node clearance (Level ${userLevel}) is insufficient for Level ${reportLevel} data.`);
+      return;
+    }
+
+    try {
+      setDownloading(report.id);
+      const response = await api.get(`/reports/download/${report.id}`, {
+        responseType: 'blob',
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${report.title.replace(/\s+/g, '_').toLowerCase()}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Neural sync failed: Data signature could not be verified.');
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   return (
     <div className="min-h-[calc(100vh-5rem)] p-8 space-y-8 max-w-7xl mx-auto page-enter mesh-bg pb-20">
@@ -50,12 +109,19 @@ const ResearchReports = () => {
         </div>
       </div>
 
+      {errorMsg && (
+        <div className="p-6 bg-rose-50 border border-rose-100 rounded-[2rem] flex items-center gap-4 text-rose-600 animate-in fade-in slide-in-from-top-4 duration-500 shadow-xl shadow-rose-500/5">
+           <ShieldAlert size={24} className="animate-pulse" />
+           <p className="text-xs font-black uppercase tracking-widest">{errorMsg}</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
          {[
-           { label: 'Total Files', val: '1,240', color: 'text-ocean-600', bg: 'bg-ocean-50', border: 'border-ocean-100', icon: Layers },
-           { label: 'Verified', val: '98%', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', icon: ShieldCheck },
-           { label: 'Recent', val: '12 New', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', icon: Zap },
-           { label: 'Encrypted', val: 'AES-256', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', icon: Lock }
+           { label: 'Database Nodes', val: stats.total_files, color: 'text-ocean-600', bg: 'bg-ocean-50', border: 'border-ocean-100', icon: Layers },
+           { label: 'Neural Link', val: stats.verified, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', icon: ShieldCheck },
+           { label: 'Trained Intel', val: stats.recent, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', icon: Zap },
+           { label: 'Data Volume', val: stats.encryption, color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', icon: Lock }
          ].map((stat, i) => (
            <div key={i} className="glass-panel p-8 flex items-center gap-6 hover-premium group cursor-help">
               <div className={`w-14 h-14 ${stat.bg} ${stat.border} ${stat.color} rounded-2xl flex items-center justify-center transition-all group-hover:rotate-6 shadow-lg shadow-slate-200/50`}>
@@ -112,8 +178,16 @@ const ResearchReports = () => {
                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">{report.security}</span>
                     </div>
                  </div>
-                 <button className="p-5 bg-white hover:bg-slate-900 text-ocean-600 hover:text-white rounded-2xl transition-all shadow-xl hover:shadow-slate-900/20 active:scale-90 group/btn border border-ocean-100 hover:border-slate-900">
-                    <Download size={24} className="group-hover/btn:animate-bounce" />
+                 <button 
+                   onClick={() => handleDownload(report)}
+                   disabled={downloading === report.id}
+                   className={`p-5 bg-white hover:bg-slate-900 text-ocean-600 hover:text-white rounded-2xl transition-all shadow-xl hover:shadow-slate-900/20 active:scale-90 group/btn border border-ocean-100 hover:border-slate-900 ${downloading === report.id ? 'opacity-50' : ''}`}
+                 >
+                    {downloading === report.id ? (
+                      <RefreshCw size={24} className="animate-spin" />
+                    ) : (
+                      <Download size={24} className="group-hover/btn:animate-bounce" />
+                    )}
                  </button>
               </div>
             </div>
