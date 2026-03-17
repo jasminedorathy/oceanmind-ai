@@ -6,10 +6,15 @@ const DatasetManager = () => {
   const [datasets, setDatasets] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchDatasets();
   }, []);
+
+  const filteredDatasets = datasets.filter(ds => 
+    ds.filename.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const fetchDatasets = async () => {
     try {
@@ -36,6 +41,26 @@ const DatasetManager = () => {
       setMsg({ type: 'error', text: 'Upload failed: Server rejected the stream.' });
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleTrain = async (filename) => {
+    try {
+      setMsg({ type: 'success', text: `Initiating neural training for ${filename}...` });
+      await api.post(`/analytics/train/${filename}`);
+      setMsg({ type: 'success', text: `Neural training complete. ${filename} is now active.` });
+      fetchDatasets();
+    } catch (err) {
+      setMsg({ type: 'error', text: 'Training failed: Neural engine offline.' });
+    }
+  };
+
+  const handleDelete = async (filename) => {
+    try {
+      await api.delete(`/datasets/${filename}`);
+      fetchDatasets();
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -99,32 +124,60 @@ const DatasetManager = () => {
 
         {/* Dataset List */}
         <div className="lg:col-span-2 space-y-8">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.3em]">Neural Registry</h3>
+            <div className="flex-1 max-w-sm relative">
+               <input 
+                 type="text"
+                 placeholder="Search registry..."
+                 value={searchTerm}
+                 onChange={(e) => setSearchTerm(e.target.value)}
+                 className="w-full bg-white/80 border border-slate-200 rounded-2xl pl-4 pr-4 py-2 text-xs focus:ring-4 focus:ring-ocean-500/5 outline-none font-bold"
+               />
+            </div>
             <span className="text-[10px] font-black text-ocean-600 bg-ocean-50 border border-ocean-100 px-4 py-2 rounded-full uppercase tracking-widest shadow-sm">{datasets.length} Active Nodes Registered</span>
           </div>
 
           <div className="grid grid-cols-1 gap-6 overflow-y-auto max-h-[700px] pr-4 scrollbar-hide pb-10">
-            {datasets.map((ds, idx) => (
+            {filteredDatasets.map((ds, idx) => (
               <div key={idx} className="glass-panel p-10 flex flex-col md:flex-row items-center gap-10 group hover-premium transition-all duration-700">
                 <div className="w-20 h-20 bg-slate-50 border border-slate-100 rounded-[2rem] flex items-center justify-center text-slate-300 group-hover:text-ocean-600 group-hover:bg-white group-hover:scale-110 group-hover:rotate-3 transition-all duration-700 shadow-sm relative overflow-hidden">
                    <div className="absolute inset-0 bg-ocean-50 opacity-0 group-hover:opacity-100 transition-opacity" />
                    <FileText size={36} className="relative z-10" />
                 </div>
                 <div className="flex-1 w-full text-center md:text-left">
-                  <h4 className="font-black text-slate-900 text-2xl mb-3 tracking-tighter group-hover:text-ocean-700 transition-colors uppercase">{ds.filename}</h4>
+                  <div className="flex items-center gap-4 mb-3 justify-center md:justify-start">
+                    <h4 className="font-black text-slate-900 text-2xl tracking-tighter group-hover:text-ocean-700 transition-colors uppercase">{ds.filename}</h4>
+                    <span className={`px-4 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${
+                      ds.status === 'trained' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'
+                    }`}>
+                      {ds.status === 'trained' ? 'Neural Link Active' : 'Ingestion Only'}
+                    </span>
+                  </div>
                   <div className="flex flex-wrap items-center justify-center md:justify-start gap-8 mt-2">
                     <div className="flex items-center gap-2 px-4 py-1.5 bg-slate-50 rounded-xl border border-slate-100 transition-all group-hover:border-ocean-200">
                        <Database size={16} className="text-ocean-500" /> 
                        <span className="text-sm font-black text-slate-600 tracking-tight tabular-nums">{ds.rows.toLocaleString()} Records</span>
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-1.5 bg-emerald-50 rounded-xl border border-emerald-100 transition-all group-hover:border-emerald-200">
-                       <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                       <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Verified Schema</span>
-                    </div>
+                    {ds.status !== 'trained' ? (
+                       <button 
+                         onClick={() => handleTrain(ds.filename)}
+                         className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-ocean-600 transition-all shadow-lg active:scale-95"
+                       >
+                          <Zap size={14} className="text-amber-400" /> Process Intelligence
+                       </button>
+                    ) : (
+                      <div className="flex items-center gap-2 px-4 py-1.5 bg-emerald-50 rounded-xl border border-emerald-100 transition-all group-hover:border-emerald-200">
+                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                         <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Training Verified</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <button className="p-5 text-slate-300 hover:text-white hover:bg-rose-500 rounded-2xl transition-all active:scale-95 group-hover:opacity-100 md:opacity-0 shadow-lg border border-slate-100 hover:border-transparent">
+                <button 
+                  onClick={() => handleDelete(ds.filename)}
+                  className="p-5 text-slate-300 hover:text-white hover:bg-rose-500 rounded-2xl transition-all active:scale-95 group-hover:opacity-100 md:opacity-0 shadow-lg border border-slate-100 hover:border-transparent"
+                >
                   <Trash2 size={24} />
                 </button>
               </div>

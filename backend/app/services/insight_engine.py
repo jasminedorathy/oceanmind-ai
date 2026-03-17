@@ -6,55 +6,67 @@ class InsightEngine:
     def generate_insights(df: pd.DataFrame):
         insights = []
         
-        # 1. Oceanographic & Climate Anomalies
+        # 1. Oceanographic & Climate
         if 'temperature' in df.columns:
             temp_mean = df['temperature'].mean()
             temp_max = df['temperature'].max()
-            if temp_max > temp_mean + 2:
+            if temp_max > temp_mean + 1.5:
                 insights.append({
                     "type": "Warning",
                     "category": "Climate",
-                    "text": f"Thermal anomaly detected: Peak reaches {temp_max}°C. Potential for mass bleaching event."
+                    "text": f"Thermal variance detected: Regional peaks are reaching {round(temp_max, 1)}°C. This exceeds the seasonal baseline by {round(temp_max - temp_mean, 1)}°C, increasing coral bleaching risk."
                 })
         
         # 2. Pollution Impact
-        if 'plastic_concentration' in df.columns or 'pollution_index' in df.columns:
+        if 'pollution_index' in df.columns or 'plastic_concentration' in df.columns:
             p_index = df.get('pollution_index', df.get('plastic_concentration', pd.Series([0]))).mean()
-            if p_index > 60:
+            if p_index > 50:
                 insights.append({
                     "type": "Critical",
                     "category": "Pollution",
-                    "text": f"High neurotoxic risk levels ({p_index}) detected in regional telemetry. Habitat quality is degrading."
+                    "text": f"Chemical telemetry indicates an elevated pollution density ({round(p_index, 1)}). Bio-accumulation risk is currently rated as HIGH for local nurseries."
+                })
+            elif p_index > 30:
+                insights.append({
+                    "type": "Alert",
+                    "category": "Pollution",
+                    "text": f"Moderate particulate concentration ({round(p_index, 1)}) detected. Recommend increasing sensor frequency in coastal sectors."
                 })
 
         # 3. Biodiversity & Ecosystem Health
         if 'biodiversity_index' in df.columns:
             b_index = df['biodiversity_index'].mean()
-            if b_index < 0.4:
+            # Handle different scales (e.g. 0-1 or 0-10)
+            threshold = 0.5 if b_index <= 1 else 5.0
+            if b_index < threshold:
                 insights.append({
                     "type": "Critical",
                     "category": "Biodiversity",
-                    "text": "Ecosystem collapse warning: Biodiversity index dropped below the survival threshold."
+                    "text": f"Ecosystem instability detected. Biodiversity Index ({round(b_index, 2)}) has fallen below the safe-state threshold."
+                })
+            else:
+                insights.append({
+                    "type": "Stable",
+                    "category": "Biodiversity",
+                    "text": f"Biological registry shows a healthy resilience index of {round(b_index, 2)}. Population clusters appear to be in a growth phase."
                 })
 
-        # 4. Multi-Source Correlations (The Intelligence Layer)
+        # 4. Neural Correlations
         if 'temperature' in df.columns and 'biodiversity_index' in df.columns:
             correlation = df['temperature'].corr(df['biodiversity_index'])
-            if correlation < -0.6:
-                insights.append({
-                    "type": "AI Insight",
-                    "category": "Correlative",
-                    "text": "Strong negative correlation: Regional warming is directly accelerating marine species decline."
-                })
-        
-        if 'pollution_index' in df.columns and 'reef_health' in df.columns:
-            p_corr = df['pollution_index'].corr(df['reef_health'])
-            if p_corr < -0.5:
-                insights.append({
-                    "type": "AI Insight",
-                    "category": "Pollution",
-                    "text": "Chemical leaching detected: 15% increase in pollution correlates with 22% decline in coral vitality."
-                })
+            if not np.isnan(correlation):
+                if correlation < -0.5:
+                    insights.append({
+                        "type": "AI Insight",
+                        "category": "Correlative",
+                        "text": f"Strong Negative Correlation ({round(correlation, 2)}): Neural grid confirms that rising thermal stress is actively driving biodiversity decline in this sector."
+                    })
+                elif correlation > 0.5:
+                    insights.append({
+                        "type": "AI Insight",
+                        "category": "Correlative",
+                        "text": f"Positive Correlation ({round(correlation, 2)}): Data suggests that current regional temperature levels are optimizing biological productivity."
+                    })
 
         return insights
 

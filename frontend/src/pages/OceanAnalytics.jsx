@@ -10,8 +10,10 @@ import {
   RefreshCw,
   CheckCircle2,
   Zap,
-  Cpu
+  Cpu,
+  Database
 } from 'lucide-react';
+import api from '../services/api';
 import { 
   XAxis, 
   YAxis, 
@@ -32,19 +34,56 @@ const OceanAnalytics = () => {
     trend: 'up'
   });
 
-  // Real-time telemetry simulation
-  useEffect(() => {
-    const mockTelemetry = [
-      { time: '00:00', temp: 22.1, salinity: 34.5 },
-      { time: '04:00', temp: 21.8, salinity: 34.6 },
-      { time: '08:00', temp: 22.5, salinity: 34.4 },
-      { time: '12:00', temp: 24.2, salinity: 34.2 },
-      { time: '16:00', temp: 23.8, salinity: 34.5 },
-      { time: '20:00', temp: 22.9, salinity: 34.7 },
-    ];
-    setData(mockTelemetry);
+  const [datasets, setDatasets] = useState([]);
+  const [selectedFile, setSelectedFile] = useState('');
 
-    // Simulate minor fluctuations every 5 seconds
+  // Fetch available datasets
+  useEffect(() => {
+    const fetchMeta = async () => {
+      try {
+        const { data: dsList } = await api.get('/datasets');
+        const trainedSteps = dsList.filter(d => d.status === 'trained');
+        setDatasets(trainedSteps);
+        if (trainedSteps.length > 0) {
+          setSelectedFile(trainedSteps[0].filename);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchMeta();
+  }, []);
+
+  // Fetch actual data for the chart
+  useEffect(() => {
+    if (!selectedFile) return;
+
+    const fetchData = async () => {
+      try {
+        const { data: rawData } = await api.get(`/analytics/data/${selectedFile}`);
+        // Map data to chart format
+        const chartData = rawData.map((d, i) => ({
+          time: d.timestamp || `00:${i}`,
+          temp: d.temperature || 0,
+          salinity: d.salinity || 0,
+          pollution: d.pollution_index || 0
+        }));
+        setData(chartData);
+
+        // Update side telemetry with means
+        if (rawData.length > 0) {
+          const avgSal = (rawData.reduce((acc, curr) => acc + (curr.salinity || 0), 0) / rawData.length).toFixed(1);
+          setTelemetry(prev => ({ ...prev, salinity: parseFloat(avgSal) }));
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchData();
+  }, [selectedFile]);
+
+  // Real-time telemetry simulation for small fluctuations
+  useEffect(() => {
     const interval = setInterval(() => {
         setTelemetry(prev => ({
             salinity: +(prev.salinity + (Math.random() * 0.1 - 0.05)).toFixed(1),
@@ -115,8 +154,21 @@ const OceanAnalytics = () => {
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">24H TELEMETRY SNAPSHOT</span>
               </div>
             </div>
-            <div className="flex items-center gap-3 px-6 py-3 bg-white border border-slate-100 rounded-2xl text-[10px] font-black text-slate-400 shadow-sm uppercase tracking-widest">
-               <Cpu size={16} className="text-ocean-500" /> SENSOR NODE: ALPHA-7-G
+            <div className="flex flex-col md:flex-row items-center gap-4">
+               <div className="flex items-center gap-3 px-6 py-3 bg-white border border-slate-100 rounded-2xl text-[10px] font-black text-slate-400 shadow-sm uppercase tracking-widest">
+                  <Database size={16} className="text-ocean-500" /> SOURCE: 
+                  <select 
+                    value={selectedFile} 
+                    onChange={(e) => setSelectedFile(e.target.value)}
+                    className="bg-transparent border-none outline-none text-slate-900 ml-2 cursor-pointer font-black"
+                  >
+                    {datasets.length === 0 && <option>NO TRAINED DATA</option>}
+                    {datasets.map(ds => <option key={ds.filename} value={ds.filename}>{ds.filename}</option>)}
+                  </select>
+               </div>
+               <div className="flex items-center gap-3 px-6 py-3 bg-white border border-slate-100 rounded-2xl text-[10px] font-black text-slate-400 shadow-sm uppercase tracking-widest">
+                  <Cpu size={16} className="text-ocean-500" /> SENSOR NODE: ALPHA-7-G
+               </div>
             </div>
           </div>
           <div className="h-[500px] relative z-10">
